@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controlo de Horário — Luís Cunha</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; background: #f1f5f9; color: #1e293b; margin: 0; padding: 12px; }
+  .box { max-width: 900px; margin: 0 auto 12px auto; background: #fff; padding: 14px; border-radius: 8px; border: 1px solid #cbd5e1; }
+  .edit-mode { border: 2px solid #d97706; background: #fffbeb; }
+  .top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  h1 { margin: 0; font-size: 1.25rem; color: #0f172a; }
+  h2 { margin: 0 0 10px 0; font-size: 1rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 8px; }
+  label { display: block; font-size: 11.5px; font-weight: bold; margin-bottom: 3px; }
+  input, select, textarea { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 5px; box-sizing: border-box; font-size: 14px; }
+  .btn { padding: 8px 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 12px; color: #fff; display: inline-flex; align-items: center; gap: 4px; }
+  .b-blue { background: #1d4ed8; } .b-green { background: #15803d; } .b-word { background: #2b579a; }
+  .b-pdf { background: #b91c1c; } .b-edit { background: #d97706; } .b-gray { background: #475569; }
+  .b-dark { background: #0f172a; } .b-light { background: #fff; color: #0f172a; border: 1px solid #cbd5e1; }
+  .item { border-bottom: 1px solid #e2e8f0; padding: 12px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+  .item:last-child { border-bottom: none; }
+  .acts { display: flex; gap: 4px; flex-wrap: wrap; }
+  .rel-box { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 12.5px; white-space: pre-wrap; margin-top: 8px; }
+  #modalPdf { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #cbd5e1; z-index: 9999; overflow: auto; }
+  .pdf-bar { position: sticky; top: 0; background: #0f172a; color: #fff; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px; z-index: 10; }
+  #folhaA4 { width: 760px; box-sizing: border-box; margin: 16px auto; background: #fff; padding: 24px 28px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-family: Calibri, Arial, sans-serif; color: #1e293b; font-size: 10pt; }
+  @media screen and (max-width: 760px) { #folhaA4 { zoom: 0.44; margin: 12px auto !important; } }
+  @media print {
+    body * { visibility: hidden; }
+    #folhaA4, #folhaA4 * { visibility: visible; }
+    #folhaA4 { position: absolute; left: 0; top: 0; width: 100%; zoom: 1 !important; margin: 0; padding: 0; box-shadow: none; }
+    .pdf-bar { display: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div id="appPrincipal">
+  <div class="box">
+    <div class="top">
+      <h1>⏱️ Controlo de Horário — <span id="titOp">Luís Cunha</span></h1>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;">
+        <button type="button" class="btn b-pdf" onclick="abrirDoc(true)">📕 Extrato PDF</button>
+        <button type="button" class="btn b-word" onclick="abrirDoc(false)">📘 Extrato Word</button>
+        <button type="button" class="btn b-dark" onclick="exportar()">💾 Guardar Cópia</button>
+        <button type="button" class="btn b-light" onclick="document.getElementById('fImp').click()">📂 Restaurar</button>
+        <button type="button" class="btn b-light" onclick="colarTxt()">📋 Colar Cópia</button>
+        <input type="file" id="fImp" style="display:none" onchange="lerFicheiro(event)">
+      </div>
+    </div>
+    <div style="font-weight:bold;font-size:13.5px;">
+      <span style="color:#1d4ed8;margin-right:14px;">Dias Registados: <span id="tDias">0</span></span>
+      <span style="color:#15803d;margin-right:14px;">Total Horas: <span id="tHoras">00:00</span></span>
+      <span id="stMsg" style="font-size:12px;color:#15803d;">✔ Ativo</span>
+    </div>
+  </div>
+  <div class="box" id="fBox">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">
+      <h2 id="fTit" style="margin:0;border:none;">➕ Registar Horário</h2>
+      <button type="button" class="btn b-gray" onclick="usarHoje()">📅 Usar Data de Hoje</button>
+    </div>
+    <div class="grid">
+      <div><label>Operador</label><input type="text" id="fOp" value="Luís Cunha" oninput="gravar()"></div>
+      <div><label>Data *</label><input type="date" id="fData"></div>
+      <div><label>Entrada</label><input type="time" id="fEnt"></div>
+      <div><label>Saída Pausa</label><input type="time" id="fSaiP"></div>
+      <div><label>Reentrada</label><input type="time" id="fReent"></div>
+      <div><label>Saída Final</label><input type="time" id="fSaiF"></div>
+    </div>
+    <div style="margin-top:8px;"><label>Observações (Opcional)</label><input type="text" id="fObs" placeholder="Ex: Serviço extra / Turno noite"></div>
+    <div style="margin-top:10px;display:flex;gap:8px;">
+      <button type="button" class="btn b-blue" style="flex:1;justify-content:center;padding:10px;font-size:14px;" id="bSub" onclick="salvar()">💾 Guardar Dia</button>
+      <button type="button" class="btn b-gray" style="display:none;" id="bCan" onclick="limpar()">Cancelar</button>
+    </div>
+  </div>
+
+  <div class="box">
+    <h2>📋 Dias Registados</h2>
+    <div id="lista">Sem dias registados.</div>
+  </div>
+
+  <div class="box">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+      <h2 style="margin:0;border:none;">📄 Relatório Gerado (podes tocar e copiar)</h2>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;">
+        <button type="button" class="btn b-green" onclick="enviarWhatsApp()">📤 Enviar WhatsApp / Notas</button>
+        <button type="button" class="btn b-gray" onclick="copiarRel()">📋 Copiar Relatório</button>
+        <button type="button" class="btn b-pdf" onclick="apagarTudo()">🗑 Apagar Tudo</button>
+      </div>
+    </div>
+    <div id="relTexto" class="rel-box" onclick="copiarRel()">Sem registos.</div>
+  </div>
+</div>
+
+<div id="modalPdf">
+  <div class="pdf-bar">
+    <button type="button" class="btn b-gray" style="padding:8px 12px;font-size:13px;" onclick="fecharPdf()">⬅ Voltar</button>
+    <div style="display:flex;gap:6px;">
+      <button type="button" class="btn b-blue" style="padding:8px 12px;font-size:13px;" onclick="partilharPdfReal()">📤 Guardar / Enviar PDF</button>
+      <button type="button" class="btn b-pdf" style="padding:8px 12px;font-size:13px;" id="btnImpHor" onclick="window.print()">🖨️ Imprimir</button>
+    </div>
+  </div>
+  <div id="folhaA4"></div>
+</div>
+<script>
+var KEY = 'app_horario_luis_cunha_v1';
+var dias = new Array();
+var editId = null;
+
+function hoje() {
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function fmtData(s) {
+  if (!s) return '';
+  var p = String(s).split('-');
+  if (p.length === 3) { var dia = p.pop(), mes = p.pop(), ano = p.pop(); return dia + '/' + mes + '/' + ano; }
+  return s;
+}
+function paraISO(s) {
+  if (!s || s.indexOf('/') === -1) return s || hoje();
+  var p = String(s).split('/');
+  if (p.length === 3) { var ano = p.pop(), mes = p.pop(), dia = p.pop(); return ano + '-' + mes + '-' + dia; }
+  return hoje();
+}
+function usarHoje() { document.getElementById('fData').value = hoje(); }
+
+function paraMin(h) {
+  if (!h || h.indexOf(':') === -1) return null;
+  var p = h.split(':');
+  return (parseInt(p[0], 10) * 60) + parseInt(p[1], 10);
+}
+function fmtMin(m) {
+  if (!m || m <= 0) return '00:00';
+  var hh = Math.floor(m / 60), mm = m % 60;
+  return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+}
+function calcMinDia(d) {
+  var e = paraMin(d.ent), sp = paraMin(d.saiP), re = paraMin(d.reent), sf = paraMin(d.saiF);
+  var tot = 0;
+  if (e !== null && sp !== null) tot += (sp >= e ? sp - e : (1440 - e + sp));
+  if (re !== null && sf !== null) tot += (sf >= re ? sf - re : (1440 - re + sf));
+  if (tot === 0 && e !== null && sf !== null && sp === null && re === null) {
+    tot = (sf >= e ? sf - e : (1440 - e + sf));
+  }
+  return tot;
+}
+
+function iniciar() {
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (raw) {
+      var obj = JSON.parse(raw);
+      dias = obj.dias || new Array();
+      if (obj.operador) {
+        document.getElementById('fOp').value = obj.operador;
+        document.getElementById('titOp').innerText = obj.operador;
+      }
+    }
+  } catch (e) {}
+  document.getElementById('fData').value = hoje();
+  render();
+}
+
+function gravar() {
+  var op = document.getElementById('fOp').value.trim() || 'Luís Cunha';
+  document.getElementById('titOp').innerText = op;
+  try {
+    localStorage.setItem(KEY, JSON.stringify({ operador: op, dias: dias }));
+    document.getElementById('stMsg').innerText = '✔ Guardado';
+  } catch (e) {}
+}
+
+function exportar() {
+  gravar();
+  var op = document.getElementById('fOp').value.trim() || 'Luís Cunha';
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(new Array(JSON.stringify({ operador: op, dias: dias }, null, 2)), { type: 'application/json' }));
+  a.download = 'Backup_Horario_' + hoje() + '.json';
+  a.click();
+}
+
+function lerFicheiro(ev) {
+  var f = ev.target.files && ev.target.files.length ? ev.target.files.item(0) : null;
+  if (!f) return;
+  var r = new FileReader();
+  r.onload = function(e) { restaurarTxt(e.target.result); ev.target.value = ''; };
+  r.readAsText(f);
+}
+
+function colarTxt() { var t = prompt('Cola o texto do Backup (.json):'); if (t) restaurarTxt(t); }
+function restaurarTxt(t) {
+  try {
+    var obj = JSON.parse(t.trim());
+    if (obj && Array.isArray(obj.dias)) {
+      dias = obj.dias;
+      if (obj.operador) {
+        document.getElementById('fOp').value = obj.operador;
+        document.getElementById('titOp').innerText = obj.operador;
+      }
+      gravar(); render();
+      alert('✔ ' + dias.length + ' dias restaurados!');
+    }
+  } catch (e) { alert('Texto inválido.'); }
+}
+
+function limpar() {
+  editId = null;
+  document.getElementById('fData').value = hoje();
+  document.getElementById('fEnt').value = '';
+  document.getElementById('fSaiP').value = '';
+  document.getElementById('fReent').value = '';
+  document.getElementById('fSaiF').value = '';
+  document.getElementById('fObs').value = '';
+  document.getElementById('fBox').classList.remove('edit-mode');
+  document.getElementById('fTit').innerText = '➕ Registar Horário';
+  document.getElementById('bSub').innerText = '💾 Guardar Dia';
+  document.getElementById('bSub').className = 'btn b-blue';
+  document.getElementById('bCan').style.display = 'none';
+}
+
+function salvar() {
+  var dt = fmtData(document.getElementById('fData').value || hoje());
+  var ent = document.getElementById('fEnt').value;
+  var saiP = document.getElementById('fSaiP').value;
+  var reent = document.getElementById('fReent').value;
+  var saiF = document.getElementById('fSaiF').value;
+  var obs = document.getElementById('fObs').value.trim();
+
+  if (!ent && !saiP && !reent && !saiF) return alert('Preenche pelo menos uma hora!');
+
+  if (editId !== null) {
+    dias.forEach(function(d) {
+      if (d.id === editId) {
+        d.data = dt; d.ent = ent; d.saiP = saiP; d.reent = reent; d.saiF = saiF; d.obs = obs;
+      }
+    });
+  } else {
+    dias.unshift({ id: Date.now(), data: dt, ent: ent, saiP: saiP, reent: reent, saiF: saiF, obs: obs });
+  }
+  limpar(); gravar(); render();
+}
+
+function apagar(id) {
+  if (confirm('Apagar este dia?')) {
+    dias = dias.filter(function(d) { return d.id !== id; });
+    gravar(); render();
+  }
+}
+
+function apagarTudo() {
+  if (!dias.length) return;
+  if (confirm('Tens a certeza que queres apagar TODOS os dias registados?')) {
+    dias = new Array();
+    gravar(); render();
+  }
+}
+
+function editar(id) {
+  var d = dias.filter(function(x) { return x.id === id; }).pop();
+  if (!d) return;
+  editId = id;
+  document.getElementById('fData').value = paraISO(d.data);
+  document.getElementById('fEnt').value = d.ent || '';
+  document.getElementById('fSaiP').value = d.saiP || '';
+  document.getElementById('fReent').value = d.reent || '';
+  document.getElementById('fSaiF').value = d.saiF || '';
+  document.getElementById('fObs').value = d.obs || '';
+  document.getElementById('fBox').classList.add('edit-mode');
+  document.getElementById('fTit').innerText = '✏️ A Editar Dia: ' + d.data;
+  document.getElementById('bSub').innerText = '💾 Guardar Alterações';
+  document.getElementById('bSub').className = 'btn b-edit';
+  document.getElementById('bCan').style.display = 'inline-block';
+  window.scrollTo(0, 0);
+}
+function render() {
+  var op = document.getElementById('fOp').value.trim() || 'Luís Cunha';
+  var totMin = 0, h = '', rel = 'CONTROLO DE HORÁRIO — ' + op.toUpperCase() + '\n==============================\n';
+
+  dias.forEach(function(d) {
+    var m = calcMinDia(d);
+    totMin += m;
+    var dur = fmtMin(m);
+    var p1 = (d.ent || '--:--') + ' às ' + (d.saiP || '--:--');
+    var p2 = (d.reent || '--:--') + ' às ' + (d.saiF || '--:--');
+
+    h += '<div class="item"><div>' +
+      '<b>📅 ' + d.data + '</b> — <span style="font-weight:bold;color:#15803d;">' + dur + 'h</span><br>' +
+      '<small style="color:#475569;">Manhã: <b>' + p1 + '</b> &nbsp;|&nbsp; Tarde: <b>' + p2 + '</b></small>' +
+      (d.obs ? '<div style="font-size:12px;color:#1d4ed8;margin-top:3px;">Obs.: ' + d.obs + '</div>' : '') +
+      '</div><div class="acts">' +
+      '<button type="button" class="btn b-edit" onclick="editar(' + d.id + ')">✏️ Editar</button>' +
+      '<button type="button" class="btn b-pdf" onclick="apagar(' + d.id + ')">🗑</button>' +
+      '</div></div>';
+
+    rel += '📅 ' + d.data + ' (' + dur + 'h)\n' +
+      '   Entrada: ' + (d.ent || '-') + ' | Saída Pausa: ' + (d.saiP || '-') + '\n' +
+      '   Reentrada: ' + (d.reent || '-') + ' | Saída Final: ' + (d.saiF || '-') + '\n' +
+      (d.obs ? '   Obs.: ' + d.obs + '\n' : '') + '------------------------------\n';
+  });
+
+  if (dias.length) {
+    rel += 'TOTAL DIAS: ' + dias.length + ' | TOTAL HORAS: ' + fmtMin(totMin) + 'h';
+  } else {
+    rel = 'Sem registos.';
+  }
+
+  document.getElementById('tDias').innerText = dias.length;
+  document.getElementById('tHoras').innerText = fmtMin(totMin);
+  document.getElementById('lista').innerHTML = h || 'Sem dias registados.';
+  document.getElementById('relTexto').innerText = rel;
+}
+
+function copiarRel() {
+  var txt = document.getElementById('relTexto').innerText;
+  if (!dias.length) return alert('Sem registos para copiar.');
+  var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+  alert('Relatório copiado!');
+}
+
+function enviarWhatsApp() {
+  var txt = document.getElementById('relTexto').innerText;
+  if (!dias.length) return alert('Sem registos para enviar.');
+  if (navigator.share) {
+    navigator.share({ title: 'Controlo de Horário', text: txt }).catch(function(){});
+  } else {
+    window.open('https://whatsapp.com' + encodeURIComponent(txt), '_blank');
+  }
+}
+
+function fecharPdf() {
+  document.getElementById('modalPdf').style.display = 'none';
+  document.getElementById('appPrincipal').style.display = 'block';
+}
+
+function abrirDoc(isPdf) {
+  if (!dias.length) return alert('Sem dias registados.');
+  var op = document.getElementById('fOp').value.trim() || 'Luís Cunha';
+  var totMin = 0, rows = '';
+  dias.forEach(function(d, i) {
+    var m = calcMinDia(d); totMin += m;
+    var bg = (i % 2 === 1) ? 'background:#f8fafc;' : '';
+    rows += '<tr style="' + bg + '">' +
+      '<td style="border-bottom:1px solid #cbd5e1;padding:9px 6px;text-align:center;">' + (i + 1) + '</td>' +
+      '<td style="border-bottom:1px solid #cbd5e1;padding:9px 6px;white-space:nowrap;"><b>' + d.data + '</b></td>' +
+      '<td style="border-bottom:1px solid #cbd5e1;padding:9px 6px;text-align:center;">' + (d.ent || '-') + '</td>' +
+      '<td style="border-bottom:1px solid #cbd5e1;padding:9px 6px;text-align:center;">' + (d.saiP || '-') + '</td>' +
+      '<td style="border-bottom:1px solid #cbd5e1;padding:9px 6px;text-align:center;">' + (d.reent || '-') + '</td>' +
+      '<td style="border-bottom:1px solid #cbd5e1;padding:9px 6px;text-align:center;">' + (d.saiF || '-') + '</td>' +
+      '<td style="border-bottom:1px solid #cbd5e1;padding:9px 6px;text-align:right;font-weight:bold;color:#15803d;">' + fmtMin(m) + 'h</td>' +
+    '</tr>';
+  });
+  var dtHoje = new Date().toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' });
+  var corpo =
+    '<div style="border-bottom:3px solid #0f172a;padding-bottom:10px;margin-bottom:20px;">' +
+      '<h1 style="margin:0 0 8px 0;font-size:17pt;color:#0f172a;white-space:nowrap;">REGISTO DE HORÁRIO DE TRABALHO</h1>' +
+      '<table style="width:100%;font-size:9.5pt;color:#334155;"><tr><td>Operador: <b>' + op.toUpperCase() + '</b></td><td style="text-align:right;"><b>Data:</b> ' + dtHoje + '</td></tr></table>' +
+    '</div>' +
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:22px;font-size:9.5pt;">' +
+      '<thead><tr style="background:#0f172a;color:#fff;"><th style="padding:9px 6px;">#</th><th style="padding:9px 6px;text-align:left;">Data</th><th style="padding:9px 6px;">Entrada</th><th style="padding:9px 6px;">Saída Pausa</th><th style="padding:9px 6px;">Reentrada</th><th style="padding:9px 6px;">Saída Final</th><th style="padding:9px 6px;text-align:right;">Total Dia</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+    '</table>' +
+    '<table style="width:100%;"><tr><td style="width:55%;"></td><td style="width:45%;"><table style="width:100%;border-collapse:collapse;font-size:10pt;">' +
+      '<tr><td style="border:1px solid #cbd5e1;padding:8px;">Dias Registados:</td><td style="border:1px solid #cbd5e1;padding:8px;text-align:right;font-weight:bold;">' + dias.length + '</td></tr>' +
+      '<tr style="background:#0f172a;color:#fff;font-weight:bold;"><td style="border:1px solid #0f172a;padding:10px;">TOTAL HORAS:</td><td style="border:1px solid #0f172a;padding:10px;text-align:right;color:#fbbf24;">' + fmtMin(totMin) + 'h</td></tr>' +
+    '</table></td></tr></table>';
+
+  if (isPdf) {
+    document.getElementById('folhaA4').innerHTML = corpo;
+    document.getElementById('appPrincipal').style.display = 'none';
+    document.getElementById('modalPdf').style.display = 'block';
+  } else {
+    var docWord = '<html><head><meta charset="utf-8"><style>@page{size:21cm 29.7cm;margin:1.8cm;}</style></head><body style="font-family:Calibri,Arial,sans-serif;font-size:10pt;">' + corpo + '</body></html>';
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(new Array('\ufeff', docWord), { type: 'application/msword' }));
+    a.download = 'Horario_' + op.split(' ').join('_') + '_' + hoje() + '.doc'; a.click();
+  }
+}
+
+function pdfEnc(txt) {
+  var s = String(txt || '');
+  var map = { 'á': '\\341', 'à': '\\340', 'â': '\\342', 'ã': '\\343', 'é': '\\351', 'ê': '\\352', 'í': '\\355', 'ó': '\\363', 'ô': '\\364', 'õ': '\\365', 'ú': '\\372', 'ç': '\\347', 'Á': '\\301', 'À': '\\300', 'Â': '\\302', 'Ã': '\\303', 'É': '\\311', 'Ê': '\\312', 'Í': '\\315', 'Ó': '\\323', 'Ô': '\\324', 'Õ': '\\325', 'Ú': '\\332', 'Ç': '\\307', '—': '-' };
+  var out = '';
+  for (var i = 0; i < s.length; i++) {
+    var ch = s.charAt(i);
+    if (ch === '(' || ch === ')' || ch === '\\') out += '\\' + ch;
+    else if (map[ch]) out += map[ch];
+    else if (s.charCodeAt(i) < 128) out += ch;
+    else out += ' ';
+  }
+  return out;
+}
+
+function partilharPdfReal() {
+  var op = document.getElementById('fOp').value.trim() || 'Luís Cunha';
+  var dtHoje = new Date().toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  var c = '';
+  function txt(x, y, sz, bold, str) { c += 'BT /' + (bold ? 'F2' : 'F1') + ' ' + sz + ' Tf ' + x + ' ' + y + ' Td (' + pdfEnc(str) + ') Tj ET\n'; }
+  function linha(x1, y1, x2, y2, w) { c += (w || 1) + ' w ' + x1 + ' ' + y1 + ' m ' + x2 + ' ' + y2 + ' l S\n'; }
+
+  txt(40, 790, 16, true, 'REGISTO DE HORARIO DE TRABALHO');
+  txt(40, 775, 9.5, false, 'Operador: ' + op.toUpperCase());
+  txt(455, 790, 9.5, false, 'Data: ' + dtHoje);
+  linha(40, 764, 555, 764, 2);
+
+  c += '0.06 0.09 0.16 rg 40 726 515 22 re f 1 1 1 rg\n';
+  txt(48, 733, 8.5, true, '#');
+  txt(72, 733, 8.5, true, 'Data');
+  txt(155, 733, 8.5, true, 'Entrada');
+  txt(230, 733, 8.5, true, 'Saida Pausa');
+  txt(320, 733, 8.5, true, 'Reentrada');
+  txt(405, 733, 8.5, true, 'Saida Final');
+  txt(495, 733, 8.5, true, 'Total');
+  c += '0 0 0 rg\n';
+
+  var y = 704, totMin = 0;
+  dias.forEach(function(d, i) {
+    var m = calcMinDia(d); totMin += m;
+    if (y < 140) return;
+    txt(48, y, 8.5, false, String(i + 1));
+    txt(72, y, 8.5, true, d.data);
+    txt(155, y, 8.5, false, d.ent || '-');
+    txt(230, y, 8.5, false, d.saiP || '-');
+    txt(320, y, 8.5, false, d.reent || '-');
+    txt(405, y, 8.5, false, d.saiF || '-');
+    txt(495, y, 8.5, true, fmtMin(m) + 'h');
+    linha(40, y - 7, 555, y - 7, 0.4);
+    y -= 21;
+  });
+
+  y -= 18;
+  txt(340, y, 9.5, false, 'Dias Registados: ' + dias.length);
+  c += '0.06 0.09 0.16 rg 330 ' + (y - 26) + ' 225 18 re f 1 1 1 rg\n';
+  txt(340, y - 21, 10, true, 'TOTAL HORAS: ' + fmtMin(totMin) + 'h');
+  c += '0 0 0 rg\n';
+  var objs = new Array();
+  objs.push('1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n');
+  objs.push('2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n');
+  objs.push('3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >> endobj\n');
+  objs.push('4 0 obj << /Length ' + c.length + ' >> stream\n' + c + 'endstream endobj\n');
+  objs.push('5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> endobj\n');
+  objs.push('6 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >> endobj\n');
+
+  var pdf = '%PDF-1.4\n';
+  var offs = new Array();
+  for (var j = 0; j < objs.length; j++) { offs.push(pdf.length); pdf += objs[j]; }
+  var xrefPos = pdf.length;
+  pdf += 'xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n';
+  for (var k = 0; k < offs.length; k++) { pdf += String(offs[k]).padStart(10, '0') + ' 00000 n \n'; }
+  pdf += 'trailer << /Size ' + (objs.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + xrefPos + '\n%%EOF';
+
+  var arr = new Uint8Array(pdf.length);
+  for (var n = 0; n < pdf.length; n++) arr[n] = pdf.charCodeAt(n) & 255;
+  var pdfBlob = new Blob(new Array(arr), { type: 'application/pdf' });
+  var nomeArq = 'Horario_' + op.split(' ').join('_') + '_' + hoje() + '.pdf';
+  var file = new File(new Array(pdfBlob), nomeArq, { type: 'application/pdf' });
+
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: new Array(file) })) {
+    navigator.share({ title: nomeArq, files: new Array(file) }).catch(function(){});
+  } else {
+    var a = document.createElement('a'); a.href = URL.createObjectURL(pdfBlob); a.download = nomeArq; a.click();
+  }
+}
+
+var btnImp = document.getElementById('btnImpHor');
+if (btnImp) {
+  btnImp.onclick = function() {
+    if (window.navigator.standalone) partilharPdfReal();
+    else window.print();
+  };
+}
+
+(function() {
+  try {
+    var c = document.createElement('canvas'); c.width = 512; c.height = 512; var ctx = c.getContext('2d');
+    var g = ctx.createLinearGradient(0, 0, 512, 512); g.addColorStop(0, '#0f172a'); g.addColorStop(1, '#0284c7');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 512, 512);
+    ctx.beginPath(); ctx.arc(256, 215, 118, 0, Math.PI * 2); ctx.fillStyle = '#f8fafc'; ctx.fill();
+    ctx.lineWidth = 12; ctx.strokeStyle = '#fbbf24'; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(256, 215); ctx.lineTo(256, 138); ctx.lineWidth = 14; ctx.lineCap = 'round'; ctx.strokeStyle = '#0f172a'; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(256, 215); ctx.lineTo(315, 240); ctx.lineWidth = 14; ctx.lineCap = 'round'; ctx.strokeStyle = '#dc2626'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(256, 215, 12, 0, Math.PI * 2); ctx.fillStyle = '#fbbf24'; ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 42px Arial'; ctx.textAlign = 'center'; ctx.fillText('HORÁRIO', 256, 412);
+    var u = c.toDataURL('image/png');
+    var l1 = document.createElement('link'); l1.rel = 'apple-touch-icon'; l1.href = u; document.head.appendChild(l1);
+    var l2 = document.createElement('link'); l2.rel = 'icon'; l2.href = u; document.head.appendChild(l2);
+  } catch (e) {}
+})();
+
+iniciar();
+</script>
+</body>
+</html>
+
+  
